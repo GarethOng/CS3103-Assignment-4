@@ -36,13 +36,31 @@ def send_email(to_email, subject, body):
 subject = "Test Email"
 body = "<html><body><h1>Hello, #name#</h1><p>This is a test email for #department# department.</p></body></html>"
 
-# you can parse the csv file here
-email_list = [
-    ("e0774088@u.nus.edu", "Alice", "HR"),
-    ("limyanling2002@gmail.com", "BOB", "IT")
-    
-]
 
+import pandas as pd
+
+# parse the csv file here
+def parse_mail_data(file_path, department_code="all"):
+    df = pd.read_excel(file_path)
+    
+    if department_code != "all":
+        df = df[df['DepartmentCode'] == department_code] #filters csv based on department code if specified, or select all rows if 'all'
+    
+    records = list(df.itertuples(index=False, name=None))
+    return records
+
+file_path = "" # replace this with the file path to csv file containing the email, names and dept codes.
+#eg. "/workspaces/CS3103-Assignment-4/sample.xlsx"
+department_code = "" #replace this with the desired department code and if the department code is “all” then the mails should be send to all email ids in the list.
+
+
+email_list = parse_mail_data(file_path, department_code)
+# email_list = [
+#     ("e0774088@u.nus.edu", "Alice", "HR"),
+#     ("limyanling2002@gmail.com", "BOB", "IT")
+# ]
+
+print(email_list)
 for email, name, department in email_list:
     personalized_body = body.replace("#name#", name).replace("#department#", department)
     send_email(email, subject, personalized_body)
