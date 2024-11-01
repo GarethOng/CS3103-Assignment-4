@@ -2,6 +2,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import time
+import requests
 
 def send_email(to_email, subject, body):
     # Replace with your actual email and password
@@ -34,7 +35,7 @@ def send_email(to_email, subject, body):
 
 # Test the function with delay
 subject = "Test Email"
-body = "<html><body><h1>Hello, #name#</h1><p>This is a test email for #department# department.</p></body></html>"
+body = "<html><body><h1>Hello, #name#</h1><p>This is a test email for #department# department.</p><img src='https://2knd1q800d.execute-api.us-east-2.amazonaws.com/default/getImage' width='1px' height='1px'></body></html>"
 
 
 import pandas as pd
@@ -65,3 +66,9 @@ for email, name, department in email_list:
     personalized_body = body.replace("#name#", name).replace("#department#", department)
     send_email(email, subject, personalized_body)
     time.sleep(5)  # Introduce delay between emails
+
+# Sends a GET request to the server to get the number of people who opened the mail
+def viewCount():
+    url='https://d8afcuwcu1.execute-api.us-east-2.amazonaws.com/default/viewCount'
+    response=requests.get(url)
+    print(f'Number of recipients who opened the mail: {response.json()}')
