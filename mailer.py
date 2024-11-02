@@ -6,6 +6,40 @@ import csv
 import os
 import re
 from typing import Optional, List, Dict, Tuple, Set
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_email(to_email, subject, body):
+    # Replace with your actual email and password
+    from_email = "limyanling2002@gmail.com" # Please test with ur own gmail
+    password = "bisb keyn uhwj jqwo" #Please test with your own password
+
+    # Set up the SMTP server with SSL (e.g., for Gmail)
+    smtp_server = "smtp.gmail.com"
+    port = 465
+
+    try:
+        # Establish an SSL connection
+        with smtplib.SMTP_SSL(smtp_server, port) as server:
+            # Login to the email account
+            server.login(from_email, password)
+            
+            # Create the email message
+            msg = MIMEMultipart()
+            msg['From'] = from_email
+            msg['To'] = to_email
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'html'))
+            
+            # Send the email
+            server.sendmail(from_email, to_email, msg.as_string())
+            print(f"Email sent to {to_email}")
+    
+    except smtplib.SMTPException as e:
+        print(f"Error: {e}")
+
+
 
 def is_valid_email(email: str) -> bool:
     """
@@ -249,6 +283,36 @@ HTML body file:
 
     # Read HTML template
     html_content = read_file_contents(args.body)
+    # SMTP server configuration
+   
+
+    # Send emails to each recipient
+    success_count = 0
+    failure_count = 0
+    for recipient in recipients:
+    # Replace placeholders in the email body with recipient's details
+        personalized_body = f"""
+            Hello {recipient['name']}!
+            Welcome to the {recipient['department_code']} department.
+
+            This is a test email template.
+            """
+
+        # Send the email and check if it was successful
+        try:
+            send_email(
+                to_email=recipient['email'],
+                subject=args.subject,
+                body=personalized_body
+            )
+            print(f"Email successfully sent to {recipient['name']} ({recipient['email']})")
+            success_count += 1
+        except Exception as e:
+            print(f"Failed to send email to {recipient['name']} ({recipient['email']}): {e}")
+            failure_count += 1
+
+    print(f"\nEmail sending completed. {success_count} emails sent successfully, {failure_count} failures.")
+
     
     print(f"""
 Valid arguments received:
