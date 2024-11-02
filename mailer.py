@@ -260,7 +260,7 @@ Valid arguments received:
 Recipients to process: {len(recipients)}
 Department filter: {"All departments" if args.department.lower() == 'all' else args.department}
 
-Sample of recipients:
+recipients:
 {'-' * 40}""")
     
     for recipient in recipients:
