@@ -6,6 +6,10 @@ import csv
 import os
 import re
 from typing import Optional, List, Dict, Tuple, Set
+from collections import defaultdict
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import requests
 
 def is_valid_email(email: str) -> bool:
     """
@@ -153,14 +157,47 @@ def get_recipients_by_department(filepath: str, department: str) -> List[Dict[st
     
     return recipients
 
+import smtplib
+from email.message import EmailMessage
+
+def send_email(email:str, password:str, recipient: dict, subject: str, body: str) -> bool:
+    """
+    Send an email to the specified recipient.
+    """
+    
+    try:
+        # Connect to Gmail's SMTP server (replace with your SMTP server if different)
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            # Login to the email account
+            server.login(email, password)
+            
+            # Create the email message
+            msg = MIMEMultipart()
+            msg['From'] = email
+            msg['To'] = recipient['email']
+            msg['Subject'] = subject
+            msg.attach(MIMEText(body, 'html'))
+            
+            server.sendmail(email, recipient['email'], msg.as_string())
+            return True
+    except Exception as e:
+        print(f"Failed to send to {recipient['email']}: {e}")
+        return False
+
+# Sends a GET request to the server to get the number of people who opened the mail
+def viewCount():
+    url='https://d8afcuwcu1.execute-api.us-east-2.amazonaws.com/default/viewCount'
+    response=requests.get(url)
+    print(f'Number of recipients who opened the mail: {response.json()}')
+
 def main():
     parser = argparse.ArgumentParser(
         description='Send emails to recipients specified in a CSV file with a custom subject and HTML body.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example usage:
-  mailer -r recipients.csv -s "CS3103 Assignment 5 Release" -b email_body.html -d CS3103 
-  mailer -r recipients.csv -s "Cancellation of Finals for AY2024/25 SEM 1" -b email_body.html -d all
+  mailer -e personal@gmail.com -p "some safe password" -r recipients.csv -s "CS3103 Assignment 5 Release" -b email_body.html -d CS3103 
+  mailer -e personal@gmail.com -p "some safe password" -r recipients.csv -s "Cancellation of Finals for AY2024/25 SEM 1" -b email_body.html -d all
 
 CSV file format:
   The CSV file must contain the following columns:
@@ -206,6 +243,17 @@ HTML body file:
         help='Department code to filter recipients (use "all" for all departments)'
     )
 
+    parser.add_argument(
+        '-e', '--email',
+        required=True,
+        help='source email that the emails will be sent out from'
+    )
+    parser.add_argument(
+        '-p', '--password',
+        required=True,
+        help='password for the source email'
+    )
+
     try:
         args = parser.parse_args()
     except SystemExit:
@@ -249,27 +297,50 @@ HTML body file:
 
     # Read HTML template
     html_content = read_file_contents(args.body)
-    
-    print(f"""
-Valid arguments received:
-- Recipients file: {args.recipients}
-- Subject: {args.subject}
-- Body file: {args.body}
-- Department: {args.department}
 
-Recipients to process: {len(recipients)}
-Department filter: {"All departments" if args.department.lower() == 'all' else args.department}
+    email_count_by_department = defaultdict(int)
 
-recipients:
-{'-' * 40}""")
-    
     for recipient in recipients:
-        print(f"- {recipient['name']} ({recipient['email']}) - {recipient['department_code']}")
+        # Personalize HTML content for the recipient
+        personalized_content = html_content.format(name=recipient['name'], department_code=recipient['department_code'])
+        
+        if send_email(args.email, args.password, recipient, args.subject, personalized_content):
+            email_count_by_department[recipient['department_code']] += 1  # Increment count for the department
+        
 
-    print(f"\nNext steps would be to:")
-    print("1. Process the HTML template for each recipient")
-    print("2. Send emails to all recipients in the filtered list")
-    print("3. Generate success/failure report")
+    print("\nEmail Send Report:")
+    print("-" * 40)
+    if args.department.lower() == "all":
+        # If "all" is specified, show counts for each department
+        for dept_code, count in email_count_by_department.items():
+            print(f"Department: {dept_code}, Emails Sent: {count}")
+    else:
+        # If a specific department is specified, show only that department's count
+        total_emails = sum(email_count_by_department.values())
+        print(f"Department: {args.department}, Emails Sent: {total_emails}")
+
+    print("\nReport generation completed.")
+    
+#     print(f"""
+# Valid arguments received:
+# - Recipients file: {args.recipients}
+# - Subject: {args.subject}
+# - Body file: {args.body}
+# - Department: {args.department}
+
+# Recipients to process: {len(recipients)}
+# Department filter: {"All departments" if args.department.lower() == 'all' else args.department}
+
+# recipients:
+# {'-' * 40}""")
+    
+#     for recipient in recipients:
+#         print(f"- {recipient['name']} ({recipient['email']}) - {recipient['department_code']}")
+
+#     print(f"\nNext steps would be to:")
+#     print("1. Process the HTML template for each recipient")
+#     print("2. Send emails to all recipients in the filtered list")
+#     print("3. Generate success/failure report")
 
 if __name__ == "__main__":
     main()
