@@ -189,68 +189,58 @@ def viewCount():
     url='https://d8afcuwcu1.execute-api.us-east-2.amazonaws.com/default/viewCount'
     response=requests.get(url)
     print(f'Number of recipients who opened the mail: {response.json()}')
-
+    
 def main():
     parser = argparse.ArgumentParser(
-        description='Send emails to recipients specified in a CSV file with a custom subject and HTML body.',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Example usage:
-  mailer -e personal@gmail.com -p "some safe password" -r recipients.csv -s "CS3103 Assignment 5 Release" -b email_body.html -d CS3103 
-  mailer -e personal@gmail.com -p "some safe password" -r recipients.csv -s "Cancellation of Finals for AY2024/25 SEM 1" -b email_body.html -d all
-
-CSV file format:
-  The CSV file must contain the following columns:
-    - email: Valid email address
-    - name: Recipient's name
-    - department_code: Department identifier
-
-  Example:
-    email,name,department_code
-    gareth@u.nus.edu ,Gareth, ABC123     
-    nevin@u.nus.edu ,Nevin , DEF456      
-    alvin@u.nus.edu ,Alvin , GHI789      
-    yan.ling@u.nus.edu ,Yan Ling, JKL101
-
-HTML body file:
-  The body file should contain valid HTML content with optional placeholders:
-  Example:
-    <html><body><h1>Hello {name}!</h1><p>Department: {department_code}</p></body></html>
-        """
+        description='Email sending and tracking tool.',
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
+    # Create mutually exclusive group for commands
+    command_group = parser.add_mutually_exclusive_group(required=True)
+    
+    # Add viewcount command
+    command_group.add_argument(
+        '-viewcount',
+        action='store_true',
+        help='Retrieve view count statistics'
+    )
+
+    # Add send email command
+    command_group.add_argument(
+        '-send',
+        action='store_true',
+        help='Send emails to recipients'
+    )
+
+    # Add all other arguments as optional, they'll be required only when sending emails
     parser.add_argument(
         '-r', '--recipients',
-        required=True,
         help='Path to the CSV file containing recipient information'
     )
     
     parser.add_argument(
         '-s', '--subject',
-        required=True,
         help='Subject line for the email'
     )
     
     parser.add_argument(
         '-b', '--body',
-        required=True,
         help='Path to the HTML file containing the email body'
     )
     
     parser.add_argument(
         '-d', '--department',
-        required=True,
         help='Department code to filter recipients (use "all" for all departments)'
     )
 
     parser.add_argument(
         '-e', '--email',
-        required=True,
         help='source email that the emails will be sent out from'
     )
+
     parser.add_argument(
         '-p', '--password',
-        required=True,
         help='password for the source email'
     )
 
@@ -259,68 +249,97 @@ HTML body file:
     except SystemExit:
         return
 
-    validation_errors = []
+    # Handle viewcount command
+    if args.viewcount:
+        print("Retrieving view count statistics...")
+        viewCount()
+        return
 
-    # Validate CSV file
-    csv_is_valid, csv_errors = validate_csv_file(args.recipients)
-    if not csv_is_valid:
-        validation_errors.extend(csv_errors)
-    
-    # Validate department code
-    dept_is_valid, dept_error = validate_department_code(args.department, args.recipients)
-    if not dept_is_valid:
-        validation_errors.append(f"Error: {dept_error}")
+    # Handle send email command
+    if args.send:
+        # Validate required arguments for sending emails
+        required_args = {
+            'recipients': args.recipients,
+            'subject': args.subject,
+            'body': args.body,
+            'department': args.department,
+            'email': args.email,
+            'password': args.password
+        }
 
-    # Validate subject
-    if not args.subject.strip():
-        validation_errors.append("Error: Subject cannot be empty.")
-
-    # Validate HTML body file
-    if not os.path.exists(args.body):
-        validation_errors.append(f"Error: Body file '{args.body}' does not exist.")
-    elif not validate_html_file(args.body):
-        validation_errors.append(f"Error: '{args.body}' is not a valid HTML file or is empty.")
-
-    if validation_errors:
-        print("\nValidation Errors:")
-        for error in validation_errors:
-            print(f"- {error}")
-        print("\nUse -h or --help for usage information.")
-        sys.exit(1)
-
-    # Get filtered recipients
-    recipients = get_recipients_by_department(args.recipients, args.department)
-    
-    if not recipients:
-        print(f"\nNo recipients found for department: {args.department}")
-        sys.exit(1)
-
-    # Read HTML template
-    html_content = read_file_contents(args.body)
-
-    email_count_by_department = defaultdict(int)
-
-    for recipient in recipients:
-        # Personalize HTML content for the recipient
-        personalized_content = html_content.format(name=recipient['name'], department_code=recipient['department_code'])
+        missing_args = [arg for arg, value in required_args.items() if not value]
         
-        if send_email(args.email, args.password, recipient, args.subject, personalized_content):
-            email_count_by_department[recipient['department_code']] += 1  # Increment count for the department
+        if missing_args:
+            print("\nError: The following arguments are required for sending emails:")
+            for arg in missing_args:
+                print(f"  -{arg[0]}/--{arg}")
+            print("\nUse -h or --help for usage information.")
+            sys.exit(1)
+
+        validation_errors = []
+
+        # Validate CSV file
+        csv_is_valid, csv_errors = validate_csv_file(args.recipients)
+        if not csv_is_valid:
+            validation_errors.extend(csv_errors)
         
+        # Validate department code
+        dept_is_valid, dept_error = validate_department_code(args.department, args.recipients)
+        if not dept_is_valid:
+            validation_errors.append(f"Error: {dept_error}")
 
-    print("\nEmail Send Report:")
-    print("-" * 40)
-    if args.department.lower() == "all":
-        # If "all" is specified, show counts for each department
-        for dept_code, count in email_count_by_department.items():
-            print(f"Department: {dept_code}, Emails Sent: {count}")
-    else:
-        # If a specific department is specified, show only that department's count
-        total_emails = sum(email_count_by_department.values())
-        print(f"Department: {args.department}, Emails Sent: {total_emails}")
+        # Validate subject
+        if not args.subject.strip():
+            validation_errors.append("Error: Subject cannot be empty.")
 
-    print("\nReport generation completed.")
-    
+        # Validate HTML body file
+        if not os.path.exists(args.body):
+            validation_errors.append(f"Error: Body file '{args.body}' does not exist.")
+        elif not validate_html_file(args.body):
+            validation_errors.append(f"Error: '{args.body}' is not a valid HTML file or is empty.")
+
+        if validation_errors:
+            print("\nValidation Errors:")
+            for error in validation_errors:
+                print(f"- {error}")
+            print("\nUse -h or --help for usage information.")
+            sys.exit(1)
+
+        # Get filtered recipients
+        recipients = get_recipients_by_department(args.recipients, args.department)
+        
+        if not recipients:
+            print(f"\nNo recipients found for department: {args.department}")
+            sys.exit(1)
+
+        # Read HTML template
+        html_content = read_file_contents(args.body)
+
+        email_count_by_department = defaultdict(int)
+
+        for recipient in recipients:
+            # Personalize HTML content for the recipient
+            personalized_content = html_content.format(
+                name=recipient['name'], 
+                department_code=recipient['department_code']
+            )
+            
+            if send_email(args.email, args.password, recipient, args.subject, personalized_content):
+                email_count_by_department[recipient['department_code']] += 1
+
+        print("\nEmail Send Report:")
+        print("-" * 40)
+        if args.department.lower() == "all":
+            # If "all" is specified, show counts for each department
+            for dept_code, count in email_count_by_department.items():
+                print(f"Department: {dept_code}, Emails Sent: {count}")
+        else:
+            # If a specific department is specified, show only that department's count
+            total_emails = sum(email_count_by_department.values())
+            print(f"Department: {args.department}, Emails Sent: {total_emails}")
+
+        print("\nReport generation completed.")
+
 #     print(f"""
 # Valid arguments received:
 # - Recipients file: {args.recipients}
